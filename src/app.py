@@ -18,7 +18,7 @@ if db_url is not None:
     app.config['SQLALCHEMY_DATABASE_URI'] = db_url.replace("postgres://", "postgresql://")
 else:
     app.config['SQLALCHEMY_DATABASE_URI'] = "sqlite:////tmp/test.db"
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 MIGRATE = Migrate(app, db)
 db.init_app(app)
@@ -77,6 +77,32 @@ def get_all_users():
     response_body = User.query.all()
     response_body = list(map(lambda x: x.serialize(), response_body))
     return jsonify(response_body), 200
+
+@app.route('/users/favorites', methods=["GET"])
+def get_current_user_favorites():
+    user_id = request.args.get('user_id')
+    
+    if not user_id:
+        data = request.get_json(silent=True)
+        if data:
+            user_id = data.get('user_id')
+    
+    if not user_id:
+        raise APIException('user_id is required as query parameter (?user_id=1) or in request body.', status_code=400)
+    
+    try:
+        user_id = int(user_id)
+    except ValueError:
+        raise APIException('user_id must be a valid integer.', status_code=400)
+    
+    user = User.query.get(user_id)
+    if user is None:
+        raise APIException(f'User ID {user_id} not found.', status_code=404)
+    
+    favorites = Favorite.query.filter_by(user_id=user_id).all()
+    favorites_list = list(map(lambda x: x.serialize(), favorites))
+    
+    return jsonify(favorites_list), 200
 
 @app.route('/users/<int:user_id>/favorites', methods=["GET"])
 def get_single_user_favorites(user_id):
@@ -141,7 +167,7 @@ def remove_favorite_person(people_id):
     
     return jsonify({"message": "Favorite person removed successfully"}), 200
 
-@app.route('/favorite/planets/<int:planet_id>', methods=["POST"])
+@app.route('/favorite/planet/<int:planet_id>', methods=["POST"])
 def add_favorite_planet(planet_id):
     data = request.get_json()
     
@@ -172,7 +198,7 @@ def add_favorite_planet(planet_id):
     
     return jsonify(new_favorite_planet.serialize()), 201
 
-@app.route('/favorite/planets/<int:planet_id>', methods=["DELETE"])
+@app.route('/favorite/planet/<int:planet_id>', methods=["DELETE"])
 def remove_favorite_planet(planet_id):
     data = request.get_json()
     
